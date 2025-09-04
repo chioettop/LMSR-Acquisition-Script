@@ -5,12 +5,35 @@ import numpy as np
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import glob
-import re
+from pathlib import Path
 from scipy.signal import savgol_filter
 
-def plot_measurement(file, ref=None, wl_window=None, savgol_params=(51, 3)):
-    window, poly = savgol_params
+def load_measurement(file, lin_coeffs=None):
     wl, dark1, direct1, dark2, reflected, dark3, direct2 = np.loadtxt(file, skiprows=1, unpack=True)
+    direct1 -= dark1
+    reflected -= dark2
+    direct2 -= dark3
+    
+    if lin_coeffs is not None:
+        # Apply linearization coefficients
+        def linearize(x):
+            return np.array([x[i] * lin_coeffs[i](x[i]) for i in range(len(x))])
+    else:
+        def linearize(x):
+            return x
+
+    direct1 = linearize(direct1)
+    reflected = linearize(reflected)
+    direct2 = linearize(direct2)
+
+    return wl, direct1, reflected, direct2
+
+
+def plot_measurement(file, ref=None, wl_window=None, lin_coeffs=None, savgol_params=(51, 3)):
+    window, poly = savgol_params
+
+    wl, direct1, reflected, direct2 = load_measurement(file, lin_coeffs)
+
     fig = plt.figure()
     gs = gridspec.GridSpec(2, 2)  # Create a 2x2 grid
 
@@ -26,7 +49,7 @@ def plot_measurement(file, ref=None, wl_window=None, savgol_params=(51, 3)):
     else:
         i_range = slice(None)
     # reflectivity = I_r / avgs of I_d
-    rft = (reflected - dark2) / ((direct1 - dark1 + direct2 - dark3) / 2)
+    rft = reflected / ((direct1 + direct2) / 2)
     rft = rft[i_range]
     wl = wl[i_range]
     rft[np.isinf(rft)] = np.nan  # In case there were div by zero errors
@@ -68,16 +91,16 @@ def plot_measurement(file, ref=None, wl_window=None, savgol_params=(51, 3)):
 
     return fig
 
-def compare_measurements(files, ref=None, wl_window=None, savgol_params=(51, 3), avg=False):
+def compare_measurements(files, ref=None, wl_window=None, lin_coeffs=None, savgol_params=(51, 3), avg=False):
     window, poly = savgol_params
 
     measurements = {}
     y_lim_min, y_lim_max = 1, 0
     avg_rft = 0
     for file in files:
-        label = file.split('.')[0]
-        wl, dark1, direct1, dark2, reflected, dark3, direct2 = np.loadtxt(file, skiprows=1, unpack=True)
-        rft = (reflected - dark2) / ((direct1 - dark1 + direct2 - dark3) / 2)
+        label = Path(file).stem
+        wl, direct1, reflected, direct2 = load_measurement(file, lin_coeffs)
+        rft = (reflected) / ((direct1 + direct2) / 2)
         rft[np.isinf(rft)] = np.nan  # In case there were div by zero errors
         if wl_window is not None:
             i_range = np.where((wl >= wl_window[0]) & (wl <= wl_window[1]))

@@ -164,20 +164,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.next_op_label = QtWidgets.QLabel("Next: "+self.operations[self.next_op])
         control_layout.addWidget(self.next_op_label)
 
-        # Get a dark
-        self.dark_button = QtWidgets.QPushButton("Dark")
-        self.dark_button.clicked.connect(self.take_dark) # Connect button click
-        control_layout.addWidget(self.dark_button)       
+        # Get a measurement/dark
+        self.meas_button = QtWidgets.QPushButton("Measure")
+        self.meas_button.setMinimumHeight(40)
+        #self.meas_button.setMinimumWidth(120)
+        font = self.meas_button.font()
+        font.setPointSize(12)
+        font.setBold(True)
+        self.meas_button.setFont(font)
+        self.meas_button.clicked.connect(self.take_measurement)
+        control_layout.addWidget(self.meas_button)
 
-        # Measurement buttons
-        self.mbuttons = {}
-        for label, color in zip(['Direct1', 'Reflected', 'Direct2'], ['lightgray', 'yellow', 'lightblue']):
-             button = QtWidgets.QPushButton(label)
-             z = np.zeros_like(self.x)
-             mplot = self.p1.plot(self.spectrum, z, pen=color)
-             self.mbuttons[label] = {'mplot': mplot, 'meas': z, 'dark': z}
-             button.clicked.connect(lambda state, l=label: self.take_measurement(l))
-             control_layout.addWidget(button)
+        self.measurements = {}  # Store measurements
+        self.saved_plot = {}  # Store live plots for each measurement
+        for label, color in zip(['Direct 1', 'Reflected', 'Direct 2'], ('blue', 'red', 'green')):
+            self.saved_plot[label] = self.p1.plot(self.x, self.spectrum, pen=pg.mkPen(color, width=1), name=label)
 
         control_layout.addWidget(QtWidgets.QLabel(""))  # spacer
 
@@ -210,22 +211,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.next_op = self.next_op + 1 if self.next_op < len(self.operations)-1 else 0
         self.next_op_label.setText("Next: "+self.operations[self.next_op])
 
-    def take_dark(self):
-        self.dark = self.spectrum.copy() 
-        self.op_inc()
+    def take_measurement(self):   # take a measurement or dark
+        meas = self.operations[self.next_op]
+        self.measurements[meas] = self.spectrum.copy()  # take the currently displayed spectrum
+        if meas.startswith('Dark'):
+            self.dark = self.spectrum.copy()  # save the current spectrum as dark
+        else:
+            self.saved_plot[meas].setData(self.x, self.spectrum - self.dark)
 
-    def take_measurement(self, label):
-        mbutton = self.mbuttons[label]
-        mbutton['meas'] = self.spectrum.copy()  # take the currently displayed spectrum
-        mbutton['dark'] = self.dark.copy()  # save the last dark taken (the one currently in use)
-        mbutton['mplot'].setData(self.x, self.spectrum - self.dark)
-
-        if label=='Direct2':
-            reflected = self.mbuttons['Reflected']['meas'] - self.mbuttons['Reflected']['dark']
-            direct1 = self.mbuttons['Direct1']['meas'] - self.mbuttons['Direct1']['dark']
-            direct2 = self.mbuttons['Direct2']['meas'] - self.mbuttons['Direct2']['dark']
-            self.reflectivity = reflected / ((direct1 + direct2) / 2)
-        self.reflectivity_plot.setData(self.x, self.reflectivity)
+            if meas=='Direct 2':
+                reflected = self.measurements['Reflected'] - self.measurements['Dark R']
+                direct1 = self.measurements['Direct 1'] - self.measurements['Dark D1']
+                direct2 = self.measurements['Direct 2'] - self.measurements['Dark D2']
+                self.reflectivity = reflected / ((direct1 + direct2) / 2)
+                self.reflectivity_plot.setData(self.x, self.reflectivity)
+        
         self.op_inc()
         
     def set_params(self):
@@ -246,13 +246,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if filePath:
             print(f"Selected file path for saving: {filePath}")
             # Here you would add the code to actually write your data to the file
-            data = np.column_stack([self.x, 
-                self.mbuttons['Direct1']['dark'], self.mbuttons['Direct1']['meas'], 
-                self.mbuttons['Reflected']['dark'],self.mbuttons['Reflected']['meas'], 
-                self.mbuttons['Direct2']['dark'], self.mbuttons['Direct2']['meas'], 
-                ])
+            data = np.column_stack([self.x] + [self.measurements[k] for k in self.operations])
             try:
-                np.savetxt(filePath, data, header=str(self.sn.currentParam()))
+                np.savetxt(filePath, data, header=str(self.sn.currentParam())+'\n'+str(self.operations))
             except Exception as e:
                 print(f"Error saving file: {e}")
         else:
@@ -261,14 +257,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_measurement(self):
         z = np.zeros_like(self.x)
         self.spectrum = z
-        self.dark = z
         self.reflectivity = z
         self.reflectivity_plot.setData(self.x, self.reflectivity)
-        for k in self.mbuttons.keys():
-            m = self.mbuttons[k]
-            m['meas'] = z
-            m['dark'] = z
-            m['mplot'].setData(self.x, z)
+        for label in ['Direct 1', 'Reflected', 'Direct 2']:
+            self.saved_plot[label].setData(self.x, z)
+        self.measurements = {}
             
         self.next_op = 0
         self.next_op_label.setText("Next: "+self.operations[self.next_op])
