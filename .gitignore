@@ -1,0 +1,26 @@
+# Virtual environment
+.srms/
+pyvenv.cfg
+Include/
+Lib/
+Scripts/
+share/
+
+# Python
+__pycache__/
+*.pyc
+
+# Vendor driver (proprietary StellarNet library, install separately)
+stellarnet_driverLibs/
+
+# OS / Drive
+desktop.ini
+
+# Local-only files (not part of the published project)
+int_time_test.py
+threaded_srmsapp.py
+pdf_merge_first_pages.py
+*.ipynb
+*.rrr
+Figure 9.png
+Thorlabs_Protected_Silver_Coating.xlsx

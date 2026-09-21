@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-spectra = np.loadtxt('20250703 prova_it test.csv', skiprows=1)
+spectra = np.loadtxt('data/20250703 prova_it test.csv', skiprows=1)
 
 wl = spectra[:,0]
 int_t = np.arange(10, 260+1, 10) # from the CSV file header)
