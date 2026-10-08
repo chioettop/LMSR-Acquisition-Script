@@ -37,3 +37,6 @@ python srmsapp.py        # GUI
 python sn_refl_meas.py   # measurement routine
 python reflectivity2.py  # example analysis (edit __main__ for your files)
 ```
+
+## Reference
+Original work by the Subaru Telescope reflectivity setup: https://subarutelescope.org/Telescope/Parameters/Reflectivity/
